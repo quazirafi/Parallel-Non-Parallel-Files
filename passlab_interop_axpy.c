@@ -1,0 +1,140 @@
+/*
+ * AXPY  Y[N] = Y[N] + a*X[N]
+ * gcc axpy.c cpu_power.c cpu_freq.c -o axpy -lm -fopenmp
+ */
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <string.h>
+#include <sys/timeb.h>
+int dummyMethod1();
+int dummyMethod2();
+int dummyMethod3();
+int dummyMethod4();
+#define _GNU_SOURCE
+#include <utmpx.h>
+
+#include "omp.h"
+
+/* read timer in second */
+static double read_timer() {
+    struct timeb tm;
+    ftime(&tm);
+    return (double) tm.time + (double) tm.millitm / 1000.0;
+}
+
+/* read timer in ms */
+static double read_timer_ms() {
+    struct timeb tm;
+    ftime(&tm);
+    return (double) tm.time * 1000.0 + (double) tm.millitm;
+}
+
+#define REAL float
+#define VECTOR_LENGTH 102400
+
+/* initialize a vector with random floating point numbers */
+void init(REAL *A, int N) {
+    int i;
+							dummyMethod1();
+#pragma omp parallel for shared(A, N) private(i)
+    for (i = 0; i < N; i++) {
+        A[i] = (double) drand48();
+    }
+							dummyMethod2();
+}
+
+double check(REAL *A, REAL B[], int N) {
+    int i;
+    double sum = 0.0;
+							dummyMethod3();
+    for (i = 0; i < N; i++) {
+        sum += A[i] - B[i];
+    }
+							dummyMethod4();
+    return sum;
+}
+
+void axpy_base(int N, REAL *Y, REAL *X, REAL a);
+
+void axpy_omp_parallel_for(int N, REAL *Y, REAL *X, REAL a);
+
+
+int main(int argc, char *argv[]) {
+    int N = VECTOR_LENGTH;
+    int num_threads = 4; /* 4 is default number of threads */
+    if (argc < 2) {
+        fprintf(stderr, "Usage: axpy <n> [<#threads(%d)>] (n should be dividable by #threads)\n", num_threads);
+        exit(1);
+    }
+    N = atoi(argv[1]);
+    if (argc > 2) num_threads = atoi(argv[2]);
+    omp_set_num_threads(num_threads);
+    REAL a = 123.456;
+    REAL *Y_base = malloc(sizeof(REAL)*N);
+    REAL *Y_parallel = malloc(sizeof(REAL)*N);
+    REAL *X = malloc(sizeof(REAL)* N);
+
+    srand48((1 << 12));
+    init(X, N);
+    init(Y_base, N);
+    memcpy(Y_parallel, Y_base, N * sizeof(REAL));
+
+    int i;
+    int num_runs = 10; 
+  
+    double elapsed_omp_parallel_for = read_timer();
+							dummyMethod3();
+    for (i=0; i<num_runs; i++) {
+//	  int dummy[(i+1)*1024];
+          axpy_omp_parallel_for(N, Y_parallel, X, a);
+//	  dummy[0] = 10232;
+    }
+							dummyMethod4();
+    elapsed_omp_parallel_for = (read_timer() - elapsed_omp_parallel_for)/num_runs;
+    
+    // you should add the call to each function and time the execution 
+    printf("======================================================================================================\n");
+    printf("\tAXPY: Y[N] = Y[N] + a*X[N], N=%d, %d threads for dist\n", N, num_threads);
+    printf("------------------------------------------------------------------------------------------------------\n");
+    printf("Performance:\t\t\tRuntime (ms)\t MFLOPS \t\tError (compared to base)\n");
+    printf("------------------------------------------------------------------------------------------------------\n");
+     printf("axpy_omp_parallel_for:\t\t%4f\t%4f \t\t%g\n", elapsed_omp_parallel_for * 1.0e3, (2.0 * N) / (1.0e6 * elapsed_omp_parallel_for), check(Y_base,Y_parallel, N));
+
+    //printf("\tElapsed time:\t%4f(ms)\n\n", elapsed_omp_parallel_for * 1.0e3);
+    sleep(1); 
+    free(Y_base);
+    free(Y_parallel);
+    free(X);
+
+    return 0;
+}
+ 
+void axpy_omp_parallel_for(int N, REAL *Y, REAL *X, REAL a) {
+    int i;
+    #pragma omp parallel shared(N, X, Y, a) private(i)
+    {
+    #pragma omp for //schedule(dynamic,64)
+							dummyMethod3();
+    for (i = 0; i < N; ++i) {
+        Y[i] += a * X[i];
+	}
+							dummyMethod4();
+    
+//    #pragma omp barrier 
+//   #pragma omp  single
+//	printf("num_threads: %d\n", omp_get_num_threads());
+   }
+}
+int dummyMethod1(){
+    return 0;
+}
+int dummyMethod2(){
+    return 0;
+}
+int dummyMethod3(){
+    return 0;
+}
+int dummyMethod4(){
+    return 0;
+}

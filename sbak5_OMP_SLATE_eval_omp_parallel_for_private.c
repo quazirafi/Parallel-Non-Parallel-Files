@@ -1,0 +1,72 @@
+// RUN: %libomp-compile-and-run
+#include <stdio.h>
+#include <math.h>
+#include "omp_testsuite.h"
+int dummyMethod1();
+int dummyMethod2();
+int dummyMethod3();
+int dummyMethod4();
+
+/*! Utility function to spend some time in a loop */
+static void do_some_work (void)
+{
+  int i;
+  double sum = 0;
+dummyMethod3();
+  for(i = 0; i < 1000; i++){
+    sum += sqrt (i);
+  }
+dummyMethod4();
+}
+
+int test_omp_parallel_for_private()
+{
+  int sum;
+  int i;
+  int i2;
+  int known_sum;
+
+  sum =0;
+  i2=0;
+
+			dummyMethod1();
+  #pragma omp parallel for reduction(+:sum) schedule(static,1) private(i) private(i2)
+  for (i=1;i<=LOOPCOUNT;i++)
+  {
+    i2 = i;
+    #pragma omp flush
+    do_some_work ();
+    #pragma omp flush
+    sum = sum + i2;
+  } /*end of for*/
+			dummyMethod2();
+  known_sum = (LOOPCOUNT * (LOOPCOUNT + 1)) / 2;
+  return (known_sum == sum);
+} /* end of check_parallel_for_private */
+
+int main()
+{
+  int i;
+  int num_failed=0;
+
+			dummyMethod3();
+  for(i = 0; i < REPETITIONS; i++) {
+    if(!test_omp_parallel_for_private()) {
+      num_failed++;
+    }
+  }
+			dummyMethod4();
+  return num_failed;
+}
+int dummyMethod1(){
+    return 0;
+}
+int dummyMethod2(){
+    return 0;
+}
+int dummyMethod3(){
+    return 0;
+}
+int dummyMethod4(){
+    return 0;
+}

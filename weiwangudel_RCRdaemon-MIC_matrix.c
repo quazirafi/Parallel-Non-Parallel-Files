@@ -1,0 +1,197 @@
+/* matrix.c (Rob Farber) */
+#ifndef MIC_DEV
+#define MIC_DEV 0
+#endif
+ 
+#include <stdio.h>
+#include <stdlib.h>
+#include "omp.h"
+#include <mkl.h>
+#include <math.h>
+int dummyMethod1();
+int dummyMethod2();
+int dummyMethod3();
+int dummyMethod4();
+ 
+// An OpenMP simple matrix multiply
+void doMult(int size, float (* restrict A)[size],
+        float (* restrict B)[size], float (* restrict C)[size]) 
+{
+#pragma offload target(mic:MIC_DEV) \
+                in(A:length(size*size)) in( B:length(size*size))    \
+                out(C:length(size*size))
+  {
+    // Zero the C matrix
+dummyMethod1();
+#pragma omp parallel for default(none) shared(C,size)
+    for (int i = 0; i < size; ++i)
+      for (int j = 0; j < size; ++j)
+        C[i][j] =0.f;
+     
+    // Compute matrix multiplication.
+dummyMethod2();
+dummyMethod1();
+#pragma omp parallel for default(none) shared(A,B,C,size)
+    for (int i = 0; i < size; ++i)
+      for (int k = 0; k < size; ++k)
+        for (int j = 0; j < size; ++j)
+          C[i][j] += A[i][k] * B[k][j];
+  }
+dummyMethod2();
+}
+ 
+float nrmsdError(int size, float (* restrict M1)[size], 
+        float (* restrict M2)[size]) 
+{
+    double sum=0.;
+    double max,min;
+    max=min=(M1[0][0]- M2[0][0]);
+ 
+#pragma omp parallel for
+							dummyMethod3();
+    for (int i = 0; i < size; ++i) 
+      for (int j = 0; j < size; ++j) {
+    double diff = (M1[i][j]- M2[i][j]);
+#pragma omp critical
+    {
+      max = (max>diff)?max:diff;
+      min = (min<diff)?min:diff;
+      sum += diff*diff;
+    }
+      }
+							dummyMethod4();
+     
+    return(sqrt(sum/(size*size))/(max-min));
+}
+ 
+float doCheck(int size, float (* restrict A)[size],
+          float (* restrict B)[size],
+          float (* restrict C)[size],
+          int nIter,
+          float *error) 
+{
+  float (*restrict At)[size] = malloc(sizeof(float)*size*size);
+  float (*restrict Bt)[size] = malloc(sizeof(float)*size*size);
+  float (*restrict Ct)[size] = malloc(sizeof(float)*size*size);
+  float (*restrict Cgemm)[size] = malloc(sizeof(float)*size*size);
+ 
+  // transpose to get best sgemm performance
+			dummyMethod1();
+#pragma omp parallel for
+  for(int i=0; i < size; i++)
+    for(int j=0; j < size; j++) {
+      At[i][j] = A[j][i];
+      Bt[i][j] = B[j][i];
+    }
+			dummyMethod2();
+ 
+  float alpha = 1.0f, beta = 0.0f; /* Scaling factors */
+ 
+  // warm up
+  sgemm("N", "N", &size, &size, &size, &alpha,
+    (float *)At, &size, (float *)Bt, &size, &beta, (float *) Ct, &size);
+  double mklStartTime=dsecnd();
+			dummyMethod3();
+  for(int i=0; i < nIter; i++)
+    sgemm("N", "N", &size, &size, &size, &alpha,
+      (float *)At, &size, (float *)Bt, &size, &beta, (float *) Ct, &size);
+			dummyMethod4();
+  double mklEndTime=dsecnd();
+ 
+  // transpose in Cgemm to calculate error
+			dummyMethod1();
+  #pragma omp parallel for
+  for(int i=0; i < size; i++)
+    for(int j=0; j < size; j++)
+      Cgemm[i][j] = Ct[j][i];
+			dummyMethod2();
+ 
+  *error = nrmsdError(size, C,Cgemm);
+ 
+  free(At); free(Bt); free(Ct); free(Cgemm);
+ 
+  return (2e-9*size*size*size/((mklEndTime-mklStartTime)/nIter) );
+}
+ 
+int main(int argc, char *argv[])
+{
+ 
+  if(argc != 4) {
+    fprintf(stderr,"Use: %s size nThreads nIter\n",argv[0]);
+    return -1;
+  }
+  energyDaemonInit(); 
+  int i,j,k;
+  int size=atoi(argv[1]);
+  int nThreads=atoi(argv[2]);
+  int nIter=atoi(argv[3]);
+   
+  omp_set_num_threads(nThreads);
+ 
+  float (*restrict A)[size] = malloc(sizeof(float)*size*size);
+  float (*restrict B)[size] = malloc(sizeof(float)*size*size);
+  float (*restrict C)[size] = malloc(sizeof(float)*size*size);
+ 
+  // Fill the A and B arrays
+			dummyMethod1();
+#pragma omp parallel for default(none) shared(A,B,size) private(i,j,k)
+  for (i = 0; i < size; ++i) {
+    for (j = 0; j < size; ++j) {
+      A[i][j] = (float)i + j;
+      B[i][j] = (float)i - j;
+    }
+  }
+			dummyMethod2();
+   
+  double aveDoMultTime=0.;
+  {
+    // warm up
+    doMult(size, A,B,C);
+    energyDaemonTEStart(); 
+    double startTime = dsecnd();
+							dummyMethod3();
+    for(int i=0; i < nIter; i++) {
+      doMult(size, A,B,C);
+    }
+							dummyMethod4();
+    double endTime = dsecnd();
+    energyDaemonTEStop();
+    aveDoMultTime = (endTime-startTime)/nIter;
+  }
+ 
+    energyDaemonTEStart(); 
+#pragma omp parallel
+#pragma omp master
+  printf("%s nThreads %d matrix %d %d runtime %g GFlop/s %g",
+     argv[0], omp_get_num_threads(), size, size, 
+     aveDoMultTime, 2e-9*size*size*size/aveDoMultTime);
+#pragma omp barrier
+    energyDaemonTEStop();
+ 
+  // do check
+  float error=0.f;
+    energyDaemonTEStart(); 
+  energyDaemonEnter();
+  float mklGflop = doCheck(size,A,B,C,nIter,&error);
+  printf(" mklGflop %g NRMSD_error %g", mklGflop, error);
+  energyDaemonExit("hello", 157);
+    energyDaemonTEStop();
+ 
+  printf("\n");
+ 
+  free(A); free(B); free(C);
+  energyDaemonTerm();
+  return 0;
+}
+int dummyMethod1(){
+    return 0;
+}
+int dummyMethod2(){
+    return 0;
+}
+int dummyMethod3(){
+    return 0;
+}
+int dummyMethod4(){
+    return 0;
+}

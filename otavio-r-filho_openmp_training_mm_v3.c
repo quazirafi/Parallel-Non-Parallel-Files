@@ -1,0 +1,122 @@
+/******************************************************************************
+* FILE: ser_mm.c
+* DESCRIPTION:  
+*   Serial Matrix Multiply - C Version
+* AUTHOR: Blaise Barney
+* LAST REVISED: 04/12/05
+******************************************************************************/
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include "omp.h"
+#include "help_funcs.h"
+int dummyMethod1();
+int dummyMethod2();
+int dummyMethod3();
+int dummyMethod4();
+
+int main(int argc, char *argv[])
+{
+    int i, j, k;        /* misc */
+    int NRA,            /* number of rows in matrix A */                
+        NCA,            /* number of columns in matrix A */                
+        NCB;            /* number of columns in matrix B */
+    double comp_start,  /* computation start timer */
+           comp_finish; /* computation finish timer */
+	double junction;
+
+    char *verb = getenv("VERBOSE");
+    char *par_mul = getenv("PARALLEL_MUL");
+
+    if(verb == NULL){
+        verb = (char*) malloc(sizeof(char));
+        *verb = '0';
+    }
+
+    if(par_mul == NULL){
+        par_mul = (char*) malloc(sizeof(char));
+        *par_mul = '0';
+    }
+
+
+    NRA = get_matrix_dims((const int) argc, (const char**) argv)[0];   /* set matrix A number of rows */
+    NCA = get_matrix_dims((const int) argc, (const char**) argv)[1];   /* set matrix A number of cols */
+    NCB = get_matrix_dims((const int) argc, (const char**) argv)[2];   /* set matrix B number of cols */
+
+    /* Alocating matrices */
+    double *a_ = (double*) malloc(NRA * NCA * sizeof(double));
+    double *b_ = (double*) malloc(NCA * NCB * sizeof(double));
+    double *c_ = (double*) malloc(NRA * NCB * sizeof(double));
+
+    /* Transforming matrices to improve readability */
+    double (*a)[NCA] = (double (*)[NCA]) a_;
+    double (*b)[NCB] = (double (*)[NCB]) b_;
+    double (*c)[NCB] = (double (*)[NCB]) c_;
+
+    printf("Starting serial matrix multiple example...\n");
+    printf("Using matrix sizes a[%d][%d], b[%d][%d], c[%d][%d]\n",
+        NRA,NCA,NCA,NCB,NRA,NCB);
+
+    /* Initialize A, B, and C matrices */
+    printf("Initializing matrices...\n");
+    initialize_matrices_arr(a_, b_, c_, (const int) NRA, (const int) NCA, (const int) NCB);
+
+    /* Perform matrix multiply */
+    comp_start = omp_get_wtime();
+    if(*par_mul == '1'){
+        #pragma omp parallel private(i,j,k,junction)
+        {
+        #pragma omp single
+        printf("Performing matrix parallel multiply with %d threads ...\n", omp_get_num_threads());
+															dummyMethod1();
+        #pragma omp parallel for
+        for(i=0;i<NRA;i++){
+            for(j=0;j<NCB;j++){
+                junction = 0.0;
+                for(k=0;k<NCA;k++){
+                    junction += a[i][k] * b[k][j];
+                }
+                c[i][j] = junction;
+            }
+        }
+															dummyMethod2();
+        } /* END OF PARALLEL SECTION */
+    } else{
+        printf("Performing serial matrix multiply ...\n");
+															dummyMethod3();
+        for(i=0;i<NRA;i++){
+            for(j=0;j<NCB;j++){
+                junction = 0.0;
+                for(k=0;k<NCA;k++){
+                    c[i][j] += a[i][k] * b[k][j];
+                }
+            }
+        }
+															dummyMethod4();
+    }
+    comp_finish = omp_get_wtime();
+
+    printf("Total computation time %lfs\n", comp_finish - comp_start);
+
+    if(verb[0] == '1'){
+        print_matrix_arr(c_, NRA, NCB);
+    }
+
+    dealoc_matrices_arr(a_, b_, c_);
+
+    printf ("Done.\n");
+
+    return 0;
+}
+int dummyMethod1(){
+    return 0;
+}
+int dummyMethod2(){
+    return 0;
+}
+int dummyMethod3(){
+    return 0;
+}
+int dummyMethod4(){
+    return 0;
+}
